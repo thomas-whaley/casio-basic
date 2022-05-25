@@ -52,7 +52,7 @@ public class Lexer {
     }
 
     private void lexLine(String line) {
-        assert TokenType.values().length == 15 : "Exhaustive handling of TokenTypes in lexLine()";
+        assert TokenType.values().length == 25 : "Exhaustive handling of TokenTypes in lexLine()";
 
         this.lineNum ++;
         this.col = 0;
@@ -68,14 +68,7 @@ public class Lexer {
             }
 
             else if (Character.isAlphabetic(c)) {
-                // Variable name
-                // VAR_NAME ::= [A-Z]
-                if ((c >= 'A' && c <= 'Z') && (Character.isWhitespace(peek(line)) || peek(line) == '\0')) {
-                    tokens.offer(new Token(TokenType.VAR_NAME, getCurrentLoc(), c));
-                }
-                else {
-                    tokens.offer(lexIdentifier(line));
-                }
+                tokens.offer(lexIdentifier(line));
             }
 
             else if (c == '+') {
@@ -145,16 +138,33 @@ public class Lexer {
             identifier += c;
             this.col ++;
         }
-
         this.col --;
+        // Special case: VAR_NAME
+        if (identifier.length() == 1) {
+            char c = identifier.charAt(0);
+            if (c >= 'A' && c <= 'Z') {
+                return new Token(TokenType.VAR_NAME, getCurrentLoc(), c);
+            }
+        }
+
         TokenType type = null;
-        if (identifier.equals("and"))      type = TokenType.AND;
-        else if (identifier.equals("or"))  type = TokenType.OR;
-        else if (identifier.equals("not")) type = TokenType.NOT;
+        if (identifier.equals("And"))      type = TokenType.AND;
+        else if (identifier.equals("Or"))  type = TokenType.OR;
+        else if (identifier.equals("Not")) type = TokenType.NOT;
+        else if (identifier.equals("While")) type = TokenType.WHILE;
+        else if (identifier.equals("WhileEnd")) type = TokenType.WHILE_END;
+        else if (identifier.equals("For")) type = TokenType.FOR;
+        else if (identifier.equals("To")) type = TokenType.TO;
+        else if (identifier.equals("Step")) type = TokenType.STEP;
+        else if (identifier.equals("Next")) type = TokenType.NEXT;
+        else if (identifier.equals("If")) type = TokenType.IF;
+        else if (identifier.equals("Then")) type = TokenType.THEN;
+        else if (identifier.equals("Else")) type = TokenType.ELSE;
+        else if (identifier.equals("IfEnd")) type = TokenType.IF_END;
 
         if (type == null) {
             fail("Unknown identifier '" + identifier + "'");
         }
-        return new Token(type, getCurrentLoc(), identifier);
+        return new Token(type, new TokenLocation(fileName, lineNum, col - identifier.length() + 1), identifier);
     }
 }

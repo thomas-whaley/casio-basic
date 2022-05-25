@@ -1,0 +1,9 @@
+If 1
+Then 1 -> A
+IfEnd
+
+If 1-4<A Or B>6
+Then 1 + 0 - 3 -> A
+Else 
+A + 1 -> A
+IfEnd

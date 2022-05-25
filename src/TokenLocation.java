@@ -10,6 +10,6 @@ public class TokenLocation {
     }
 
     public String toString() {
-        return "\"" + fileName + "\":" + lineNum + ":" + column;
+        return fileName + ":" + lineNum + ":" + column;
     }
 }

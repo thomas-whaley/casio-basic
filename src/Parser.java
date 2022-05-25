@@ -16,13 +16,15 @@ public class Parser {
         System.exit(1);
     }
 
-    private boolean eat(TokenType tokenType, Queue<Token> tokens) {
+    private boolean peek(TokenType tokenType, Queue<Token> tokens) {
         if (tokens.isEmpty()) return false;
-        if (tokens.peek().getType() == tokenType) {
-            tokens.poll();
-            return true;
-        }
-        return false;
+        return tokens.peek().getType() == tokenType;
+    }
+
+    private boolean eat(TokenType tokenType, Queue<Token> tokens) {
+        if (!peek(tokenType, tokens)) return false;
+        tokens.poll();
+        return true;
     }
 
     private Token require(TokenType tokenType, String message, Queue<Token> tokens) {
@@ -41,17 +43,24 @@ public class Parser {
         while (!tokens.isEmpty()) { nodes.add(parseStatement(tokens)); }
         return new ProgramNode(nodes);
     }
-
+    
     /**
-     * STATEMENT ::= VAR_ASSIGN
+     * STATEMENT ::= VAR_ASSIGN |
+     *               WHILE |
+     *               FOR |
+     *               IF
      */
     private ASTNode parseStatement(Queue<Token> tokens) {
-        ASTNode body = parseVarAssign(tokens);
+        ASTNode body = null;
+        if (peek(TokenType.WHILE, tokens))    body = parseWhile(tokens);
+        else if (peek(TokenType.FOR, tokens)) body = parseFor(tokens);
+        else if (peek(TokenType.IF, tokens))  body = parseIf(tokens);
+        else                                  body = parseVarAssign(tokens);
         return new StatementNode(body);
     }
-
+    
     /**
-     * VAR_ASSIGN ::= EXPR ASSIGN VAR_NAME
+     * VAR_ASSIGN ::= EXPR "->" VAR_NAME
      */
     private ASTNode parseVarAssign(Queue<Token> tokens) {
         ASTNode expr = parseExpression(tokens);
@@ -59,7 +68,70 @@ public class Parser {
         Token varName = require(TokenType.VAR_NAME, "Invalid variable name", tokens);
         return new VarAssignNode(expr, (char) varName.getVal());
     }
-
+    
+    /**
+     * WHILE ::= "While" EXPR BODY "WhileEnd"
+     */
+    private ASTNode parseWhile(Queue<Token> tokens) {
+        require(TokenType.WHILE, "Invalid identifier in while block, expects `While`", tokens);
+        ASTNode expr = parseExpression(tokens);
+        ASTNode body = parseBody(TokenType.WHILE_END, "WhileEnd", tokens);
+        return new WhileNode(expr, body);
+    }
+    
+    /**
+     * FOR ::= "For" VAR_ASSIGN "To" EXPR ( "Step" EXPR ) BODY "Next"
+     */
+    private ASTNode parseFor(Queue<Token> tokens) {
+        require(TokenType.FOR, "Invalid identifier in for block, expects `For`", tokens);
+        ASTNode var = parseVarAssign(tokens);
+        require(TokenType.TO, "Invalid identifier in for block, expects `To`", tokens);
+        ASTNode toExpr = parseExpression(tokens);
+        ASTNode stepExpr = null;
+        if (eat(TokenType.STEP, tokens)) stepExpr = parseExpression(tokens);
+        ASTNode body = parseBody(TokenType.NEXT, "Next", tokens);
+        return new ForNode(var, toExpr, stepExpr, body);
+    }
+    
+    /**
+     * IF ::= "If" EXPR "Then" BODY ( "Else" BODY ) "EndIf"
+     */
+    private ASTNode parseIf(Queue<Token> tokens) {
+        require(TokenType.IF, "Invalid identifier in if block, expects `If`", tokens);
+        ASTNode condition = parseExpression(tokens);
+        require(TokenType.THEN, "Invalid identifier in if block, expects `Then`", tokens);
+        
+        List<ASTNode> ifStatements = new LinkedList<ASTNode>();
+        // Parse body until `Else` or `EndIf`
+        while (!peek(TokenType.ELSE, tokens) && !eat(TokenType.IF_END, tokens)) {
+            // If we are at the end, require a `EndIf`
+            if (tokens.size() == 1) { require(TokenType.IF_END, "Body expects `IfEnd` at the end, but received nothing", tokens); break; }
+            ifStatements.add(parseStatement(tokens));
+        }
+        ASTNode ifBody = new BodyNode(ifStatements);
+        ASTNode elseBody = null;
+        if (eat(TokenType.ELSE, tokens)) {
+            elseBody = parseBody(TokenType.IF_END, "IfEnd", tokens);
+        }
+        return new IfNode(condition, ifBody, elseBody);
+    }
+    
+    
+    /**
+     * BODY ::= STATEMENT* BODY_END
+     */
+    private ASTNode parseBody(TokenType end, String endString, Queue<Token> tokens) {
+        List<ASTNode> body = new LinkedList<ASTNode>();
+        while (!eat(end, tokens)) {
+            if (tokens.size() == 1) {
+                require(end, "Body expects `" + endString + "` at the end, but received nothing", tokens);
+                break;
+            }
+            body.add(parseStatement(tokens));
+        }
+        return new BodyNode(body);
+    }
+    
     /**
      * EXPR ::= LOGIC_OP
      */
@@ -70,9 +142,9 @@ public class Parser {
     
     /**
      * LOGIC_OP ::= REL_OP |
-     *              REL_OP ( AND REL_OP )* |
-     *              REL_OP ( OR REL_OP )* |
-     *              NOT REL_OP
+     *              REL_OP ( "And" REL_OP )* |
+     *              REL_OP ( "Or" REL_OP )* |
+     *              "Not" REL_OP
      */
     private ASTNode parseLogicOp(Queue<Token> tokens) {
         if (eat(TokenType.NOT, tokens)) return new LogicOpNode(new NotNode(parseRelativeOp(tokens)));
@@ -91,9 +163,9 @@ public class Parser {
     
     /**
      * REL_OP ::= SUM |
-     *            SUM ( L_THAN SUM )* |
-     *            SUM ( G_THAN SUM )* |
-     *            SUM ( EQ_TO SUM )*
+     *            SUM ( "<" SUM )* |
+     *            SUM ( ">" SUM )* |
+     *            SUM ( "=" SUM )*
      */
     private ASTNode parseRelativeOp(Queue<Token> tokens) {
         ASTNode node = parseSum(tokens);
@@ -108,11 +180,11 @@ public class Parser {
         }
         return new RelativeOpNode(node);
     }
-
+    
     /**
      * SUM ::= TERM |
-     *         TERM ( PLUS TERM )* |
-     *         TERM ( MINUS TERM )*
+     *         TERM ( "+" TERM )* |
+     *         TERM ( "-" TERM )*
      */
     private ASTNode parseSum(Queue<Token> tokens) {
         ASTNode node = parseTerm(tokens);
@@ -127,11 +199,11 @@ public class Parser {
         }
         return new SumNode(node);
     }
-
+    
     /**
      * TERM ::= FACTOR |
-     *          FACTOR ( MULTIPLY FACTOR )* |
-     *          FACTOR ( DIVIDE FACTOR )* |
+     *          FACTOR ( "*" FACTOR )* |
+     *          FACTOR ( "/" FACTOR )* |
      */
     private ASTNode parseTerm(Queue<Token> tokens) {
         ASTNode node = parseFactor(tokens);
@@ -146,17 +218,19 @@ public class Parser {
         }
         return new TermNode(node);
     }
-
+    
     /**
-     * FACTOR ::= PLUS FACTOR |
-     *            MINUS FACTOR |
-     *            LPAREN EXPR RPAREN |
-     *            NUMBER
+     * FACTOR ::= "+" FACTOR |
+     *            "-" FACTOR |
+     *            "(" EXPR ")" |
+     *            NUMBER |
+     *            VAR_NAME
      */
     private ASTNode parseFactor(Queue<Token> tokens) {
         ASTNode node = null;
-        if (eat(TokenType.PLUS, tokens))       node = new PlusUnaryOpNode(parseFactor(tokens));
-        else if (eat(TokenType.MINUS, tokens)) node = new MinusUnaryOpNode(parseFactor(tokens));
+        if (eat(TokenType.PLUS, tokens))           node = new PlusUnaryOpNode(parseFactor(tokens));
+        else if (eat(TokenType.MINUS, tokens))     node = new MinusUnaryOpNode(parseFactor(tokens));
+        else if (peek(TokenType.VAR_NAME, tokens)) node = new VarEvaluateNode((char) tokens.poll().getVal());
         else if (eat(TokenType.LPAREN, tokens)) {
             node = parseExpression(tokens);
             require(TokenType.RPAREN, "Missing closing parenthesis ')' after expression", tokens);
