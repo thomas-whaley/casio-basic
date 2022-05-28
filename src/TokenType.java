@@ -3,9 +3,16 @@ public enum TokenType {
     MINUS,
     MULTIPLY,
     DIVIDE,
+
+    LOCATE,
+    GET_KEY,
+
+    CLEAR_TEXT,
     
     WHILE,
     WHILE_END,
+    DO,
+    LP_WHILE,
     FOR,
     TO,
     STEP,
@@ -17,7 +24,10 @@ public enum TokenType {
     
     L_THAN,
     G_THAN,
+    L_THAN_E,
+    G_THAN_E,
     EQ_TO,
+    NOT_EQ_TO,
     
     AND,
     OR,
@@ -25,8 +35,11 @@ public enum TokenType {
     
     LPAREN,
     RPAREN,
+    COMMA,
     
     NUM,
+    TEXT,
+
     VAR_ASSIGN,
     VAR_NAME
 }

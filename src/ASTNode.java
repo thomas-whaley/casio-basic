@@ -10,7 +10,6 @@ interface ASTNode {
     public String debugString(String prefix, String pad);
 }
 
-
 //////////////////////////////////////////////////////////////
 //                          PROGRAM                         //
 //////////////////////////////////////////////////////////////
@@ -45,9 +44,13 @@ class ProgramNode implements ASTNode {
 //////////////////////////////////////////////////////////////
 
 /**
- * STATEMENT ::= VAR_ASSIGN |
- *               WHILE |
- *               FOR
+ * STATEMENT ::= WHILE |
+ *               DO_WHILE |
+ *               FOR |
+ *               IF |
+ *               VAR_ASSIGN |
+ *               EXPR |
+ *               TEXT
  */
 class StatementNode implements ASTNode {
     private ASTNode node;
@@ -70,7 +73,7 @@ class StatementNode implements ASTNode {
 //////////////////////////////////////////////////////////////
 
 /**
- * WHILE ::= "While" EXPR BODY "WhileEnd"
+ * WHILE ::= `While` EXPR BODY `WhileEnd`
  */
 class WhileNode implements ASTNode {
     private ASTNode expr;
@@ -91,12 +94,31 @@ class WhileNode implements ASTNode {
     }
 }
 
+/**
+ * DO_WHILE ::= `Do` BODY `LpWhile` EXPR
+ */
+class DoWhileNode implements ASTNode {
+    private ASTNode expr;
+    private ASTNode body;
+
+    DoWhileNode(ASTNode expr, ASTNode body) { this.expr = expr; this.body = body; }
+
+    public String toString() { return "Do " + body + "\nLpWhile" + expr; }
+
+    public String debugString(String prefix, String pad) {
+        String out = prefix + "DO_WHILE [\n";
+        out += body.debugString(prefix + pad, pad);
+        out += expr.debugString(prefix + pad, pad);
+        return out + prefix + "]\n";
+    }
+}
+
 //////////////////////////////////////////////////////////////
 //                            FOR                           //
 //////////////////////////////////////////////////////////////
 
 /**
- * FOR ::= "For" VAR_ASSIGN "To" EXPR ( "Step" EXPR ) BODY "Next"
+ * FOR ::= `For` VAR_ASSIGN `To` EXPR ( `Step` EXPR ) BODY `Next`
  */
 class ForNode implements ASTNode {
     private ASTNode varAssign;
@@ -129,7 +151,7 @@ class ForNode implements ASTNode {
 }
 
 /**
- * IF ::= "If" EXPR "Then" BODY ( "Else" BODY ) "IfEnd"
+ * IF ::= `If` EXPR `Then` BODY ( `Else` BODY ) `IfEnd`
  */
 class IfNode implements ASTNode {
     private ASTNode condition;
@@ -216,9 +238,9 @@ class ExpressionNode implements ASTNode {
 
 /**
  * LOGIC_OP ::= REL_OP |
- *              REL_OP ( "And" REL_OP )* |
- *              REL_OP ( "Or" REL_OP )* |
- *              "Not" REL_OP
+ *              REL_OP ( `And` REL_OP )* |
+ *              REL_OP ( `Or` REL_OP )* |
+ *              `Not` REL_OP
  */
 class LogicOpNode implements ASTNode {
     private ASTNode node;
@@ -294,9 +316,12 @@ class NotNode implements ASTNode {
 
 /**
  * REL_OP ::= SUM |
- *            SUM ( "<" SUM )* |
- *            SUM ( ">" SUM )* |
- *            SUM ( "=" SUM )*
+ *            SUM ( `<` SUM )* |
+ *            SUM ( `>` SUM )* |
+ *            SUM ( `≤` SUM )* |
+ *            SUM ( `≥` SUM )* |
+ *            SUM ( `=` SUM )*
+ *            SUM ( `≠` SUM )*
  */
 class RelativeOpNode implements ASTNode {
     private ASTNode node;
@@ -350,6 +375,42 @@ class GreaterThanNode implements ASTNode {
     }
 }
 
+class LessThanEqNode implements ASTNode {
+    private ASTNode l;
+    private ASTNode r;
+    
+    LessThanEqNode(ASTNode l, ASTNode r) { this.l = l; this.r = r; }
+    
+    public String toString() {
+        return "(" + l + ") ≤ (" + r + ")";
+    }
+    
+    public String debugString(String prefix, String pad) {
+        String out = prefix + "LESS_THAN_EQ [\n";
+        out += l.debugString(prefix + pad, pad);
+        out += r.debugString(prefix + pad, pad);
+        return out + prefix + "]\n";
+    }
+}
+
+class GreaterThanEqNode implements ASTNode {
+    private ASTNode l;
+    private ASTNode r;
+    
+    GreaterThanEqNode(ASTNode l, ASTNode r) { this.l = l; this.r = r; }
+    
+    public String toString() {
+        return "(" + l + ") ≥ (" + r + ")";
+    }
+    
+    public String debugString(String prefix, String pad) {
+        String out = prefix + "GREATER_THAN_EQ [\n";
+        out += l.debugString(prefix + pad, pad);
+        out += r.debugString(prefix + pad, pad);
+        return out + prefix + "]\n";
+    }
+}
+
 class EqualToNode implements ASTNode {
     private ASTNode l;
     private ASTNode r;
@@ -368,14 +429,32 @@ class EqualToNode implements ASTNode {
     }
 }
 
+class NotEqualToNode implements ASTNode {
+    private ASTNode l;
+    private ASTNode r;
+    
+    NotEqualToNode(ASTNode l, ASTNode r) { this.l = l; this.r = r; }
+    
+    public String toString() {
+        return "(" + l + ") ≠ (" + r + ")";
+    }
+    
+    public String debugString(String prefix, String pad) {
+        String out = prefix + "NOT_EQUAL_TO [\n";
+        out += l.debugString(prefix + pad, pad);
+        out += r.debugString(prefix + pad, pad);
+        return out + prefix + "]\n";
+    }
+}
+
 //////////////////////////////////////////////////////////////
 //                            SUM                           //
 //////////////////////////////////////////////////////////////
 
 /**
  * SUM ::= TERM |
- *         TERM ( "+" TERM )* |
- *         TERM ( "-" TERM )*
+ *         TERM ( `+` TERM )* |
+ *         TERM ( `-` TERM )*
  */
 class SumNode implements ASTNode {
     private ASTNode node;
@@ -435,8 +514,8 @@ class MinusOpNode implements ASTNode {
 
 /**
  * TERM ::= FACTOR |
- *          FACTOR ( "*" FACTOR )* |
- *          FACTOR ( "/" FACTOR )* |
+ *          FACTOR ( `✕` FACTOR )* |
+ *          FACTOR ( `÷` FACTOR )* |
  */
 class TermNode implements ASTNode {
     private ASTNode node;
@@ -461,7 +540,7 @@ class MultiplyOpNode implements ASTNode {
     MultiplyOpNode(ASTNode l, ASTNode r) { this.l = l; this.r = r; }
 
     public String toString() {
-        return "(" + l + ") * (" + r + ")";
+        return "(" + l + ") ✕ (" + r + ")";
     }
 
     public String debugString(String prefix, String pad) {
@@ -479,7 +558,7 @@ class DivideOpNode implements ASTNode {
     DivideOpNode(ASTNode l, ASTNode r) { this.l = l; this.r = r; }
 
     public String toString() {
-        return "(" + l + ") / (" + r + ")";
+        return "(" + l + ") ÷ (" + r + ")";
     }
 
     public String debugString(String prefix, String pad) {
@@ -495,11 +574,12 @@ class DivideOpNode implements ASTNode {
 //////////////////////////////////////////////////////////////
 
 /**
- * FACTOR ::= "+" FACTOR |
- *            "-" FACTOR |
- *            "(" EXPR ")" |
+ * FACTOR ::= `+` FACTOR |
+ *            `-` FACTOR |
+ *            `(` EXPR ")" |
  *            NUMBER |
- *            VAR_NAME
+ *            VAR_NAME |
+ *            `Getkey`
  */
 class FactorNode implements ASTNode {
     private ASTNode node;
@@ -554,7 +634,7 @@ class MinusUnaryOpNode implements ASTNode {
 //////////////////////////////////////////////////////////////
 
 /**
- * VAR_ASSIGN ::= EXPR "->" VAR_NAME
+ * VAR_ASSIGN ::= EXPR `->` VAR_NAME
  * VAR_NAME ::= [A-Z]
  */
 class VarAssignNode implements ASTNode {
@@ -595,6 +675,49 @@ class VarEvaluateNode implements ASTNode {
 }
 
 //////////////////////////////////////////////////////////////
+//                            IO                            //
+//////////////////////////////////////////////////////////////
+
+/**
+ * GET_KEY ::= `GetKey`
+ */
+class GetKeyNode implements ASTNode {
+    public String toString() {
+        return "GetKey";
+    }
+
+    public String debugString(String prefix, String pad) {
+        return prefix + "GET_KEY\n";
+    }
+}
+
+/**
+ * LOCATE ::= `Locate` EXPR `,` EXPR `,` TEXT
+ *            `Locate` EXPR `,` EXPR `,` EXPR
+ */
+class LocateNode implements ASTNode {
+    private ASTNode x;
+    private ASTNode y;
+    private ASTNode value;
+
+    LocateNode(ASTNode x, ASTNode y, ASTNode value) {
+        this.x = x;
+        this.y = y;
+        this.value = value;
+    }
+
+    public String toString() { return "Locate " + x + ", " + y + ", " + value; }
+
+    public String debugString(String prefix, String pad) {
+        String out = prefix + "LOCATE [\n";
+        out += x.debugString(prefix + pad, pad);
+        out += y.debugString(prefix + pad, pad);
+        out += value.debugString(prefix + pad, pad);
+        return out + prefix + "]\n";
+    }
+}
+
+//////////////////////////////////////////////////////////////
 //                          NUMBER                          //
 //////////////////////////////////////////////////////////////
 
@@ -612,6 +735,29 @@ class NumberNode implements ASTNode {
 
     public String debugString(String prefix, String pad) {
         String out = prefix + "NUMBER [\n";
+        out += prefix + pad + toString() + "\n";
+        return out + prefix + "]\n";
+    }
+}
+
+//////////////////////////////////////////////////////////////
+//                            TEXT                          //
+//////////////////////////////////////////////////////////////
+
+/**
+ * TEXT ::= `"` .* `"`
+ */
+class TextNode implements ASTNode {
+    private String value;
+
+    TextNode(String value) { this.value = value; }
+
+    public String toString() {
+        return "\"" + value + "\"";
+    }
+
+    public String debugString(String prefix, String pad) {
+        String out = prefix + "TEXT [\n";
         out += prefix + pad + toString() + "\n";
         return out + prefix + "]\n";
     }

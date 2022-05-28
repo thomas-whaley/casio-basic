@@ -45,32 +45,38 @@ public class Parser {
     }
     
     /**
-     * STATEMENT ::= VAR_ASSIGN |
-     *               WHILE |
+     * STATEMENT ::= WHILE |
+     *               DO_WHILE |
      *               FOR |
-     *               IF
+     *               IF |
+     *               VAR_ASSIGN |
+     *               TEXT |
+     *               LOCATE
      */
     private ASTNode parseStatement(Queue<Token> tokens) {
         ASTNode body = null;
-        if (peek(TokenType.WHILE, tokens))    body = parseWhile(tokens);
-        else if (peek(TokenType.FOR, tokens)) body = parseFor(tokens);
-        else if (peek(TokenType.IF, tokens))  body = parseIf(tokens);
-        else                                  body = parseVarAssign(tokens);
+        if (peek(TokenType.WHILE, tokens))       body = parseWhile(tokens);
+        else if (peek(TokenType.DO, tokens))     body = parseDoWhile(tokens);
+        else if (peek(TokenType.FOR, tokens))    body = parseFor(tokens);
+        else if (peek(TokenType.IF, tokens))     body = parseIf(tokens);
+        else if (peek(TokenType.TEXT, tokens))   body = parseText(tokens);
+        else if (peek(TokenType.LOCATE, tokens)) body = parseLocate(tokens);
+        else                                     body = parseVarAssign(tokens);
         return new StatementNode(body);
     }
     
     /**
-     * VAR_ASSIGN ::= EXPR "->" VAR_NAME
+     * VAR_ASSIGN ::= EXPR `->` VAR_NAME
      */
     private ASTNode parseVarAssign(Queue<Token> tokens) {
         ASTNode expr = parseExpression(tokens);
-        require(TokenType.VAR_ASSIGN, "Variable assigning expects assign token", tokens);
+        require(TokenType.VAR_ASSIGN, "Variable assigning expects `->`", tokens);
         Token varName = require(TokenType.VAR_NAME, "Invalid variable name", tokens);
         return new VarAssignNode(expr, (char) varName.getVal());
     }
-    
+
     /**
-     * WHILE ::= "While" EXPR BODY "WhileEnd"
+     * WHILE ::= `While` EXPR BODY `WhileEnd`
      */
     private ASTNode parseWhile(Queue<Token> tokens) {
         require(TokenType.WHILE, "Invalid identifier in while block, expects `While`", tokens);
@@ -78,9 +84,19 @@ public class Parser {
         ASTNode body = parseBody(TokenType.WHILE_END, "WhileEnd", tokens);
         return new WhileNode(expr, body);
     }
+
+    /**
+     * DO_WHILE ::= `Do` BODY `LpWhile` EXPR
+     */
+    private ASTNode parseDoWhile(Queue<Token> tokens) {
+        require(TokenType.DO, "Invalid identifier in do-while block, expects `Do`", tokens);
+        ASTNode body = parseBody(TokenType.LP_WHILE, "LpWhile", tokens);
+        ASTNode expr = parseExpression(tokens);
+        return new DoWhileNode(expr, body);
+    }
     
     /**
-     * FOR ::= "For" VAR_ASSIGN "To" EXPR ( "Step" EXPR ) BODY "Next"
+     * FOR ::= `For` VAR_ASSIGN `To` EXPR ( `Step` EXPR ) BODY `Next`
      */
     private ASTNode parseFor(Queue<Token> tokens) {
         require(TokenType.FOR, "Invalid identifier in for block, expects `For`", tokens);
@@ -94,7 +110,7 @@ public class Parser {
     }
     
     /**
-     * IF ::= "If" EXPR "Then" BODY ( "Else" BODY ) "EndIf"
+     * IF ::= `If` EXPR `Then` BODY ( `Else` BODY ) `IfEnd`
      */
     private ASTNode parseIf(Queue<Token> tokens) {
         require(TokenType.IF, "Invalid identifier in if block, expects `If`", tokens);
@@ -116,7 +132,6 @@ public class Parser {
         return new IfNode(condition, ifBody, elseBody);
     }
     
-    
     /**
      * BODY ::= STATEMENT* BODY_END
      */
@@ -131,6 +146,22 @@ public class Parser {
         }
         return new BodyNode(body);
     }
+
+    /**
+     * LOCATE ::= `Locate` EXPR `,` EXPR `,` TEXT |
+     *            `Locate` EXPR `,` EXPR `,` EXPR
+     */
+    private ASTNode parseLocate(Queue<Token> tokens) {
+        require(TokenType.LOCATE, "Invalid identifier in locate statement, expects `Locate`", tokens);
+        ASTNode x = parseExpression(tokens);
+        require(TokenType.COMMA, "Expects `,` between arguments in `Locate` statement", tokens);
+        ASTNode y = parseExpression(tokens);
+        require(TokenType.COMMA, "Expects `,` between arguments in `Locate` statement", tokens);
+        ASTNode value = null;
+        if (peek(TokenType.TEXT, tokens)) value = parseText(tokens);
+        else                              value = parseExpression(tokens);
+        return new LocateNode(x, y, value);
+    }
     
     /**
      * EXPR ::= LOGIC_OP
@@ -142,9 +173,9 @@ public class Parser {
     
     /**
      * LOGIC_OP ::= REL_OP |
-     *              REL_OP ( "And" REL_OP )* |
-     *              REL_OP ( "Or" REL_OP )* |
-     *              "Not" REL_OP
+     *              REL_OP ( `And` REL_OP )* |
+     *              REL_OP ( `Or` REL_OP )* |
+     *              `Not` REL_OP
      */
     private ASTNode parseLogicOp(Queue<Token> tokens) {
         if (eat(TokenType.NOT, tokens)) return new LogicOpNode(new NotNode(parseRelativeOp(tokens)));
@@ -163,19 +194,22 @@ public class Parser {
     
     /**
      * REL_OP ::= SUM |
-     *            SUM ( "<" SUM )* |
-     *            SUM ( ">" SUM )* |
-     *            SUM ( "=" SUM )*
+     *            SUM ( `<` SUM )* |
+     *            SUM ( `>` SUM )* |
+     *            SUM ( `≤` SUM )* |
+     *            SUM ( `≥` SUM )* |
+     *            SUM ( `=` SUM )*
+     *            SUM ( `≠` SUM )*
      */
     private ASTNode parseRelativeOp(Queue<Token> tokens) {
         ASTNode node = parseSum(tokens);
         while (true) {
-            if (eat(TokenType.L_THAN, tokens)) {
-                node = new LessThanNode(node, parseSum(tokens));
-            }
-            else if (eat(TokenType.G_THAN, tokens)) {
-                node = new GreaterThanNode(node, parseSum(tokens));
-            }
+            if (eat(TokenType.L_THAN, tokens))         node = new LessThanNode(node, parseSum(tokens));
+            else if (eat(TokenType.G_THAN, tokens))    node = new GreaterThanNode(node, parseSum(tokens));
+            else if (eat(TokenType.L_THAN_E, tokens))  node = new LessThanEqNode(node, parseSum(tokens));
+            else if (eat(TokenType.G_THAN_E, tokens))  node = new GreaterThanEqNode(node, parseSum(tokens));
+            else if (eat(TokenType.EQ_TO, tokens))     node = new EqualToNode(node, parseSum(tokens));
+            else if (eat(TokenType.NOT_EQ_TO, tokens)) node = new NotEqualToNode(node, parseSum(tokens));
             else break;
         }
         return new RelativeOpNode(node);
@@ -183,8 +217,8 @@ public class Parser {
     
     /**
      * SUM ::= TERM |
-     *         TERM ( "+" TERM )* |
-     *         TERM ( "-" TERM )*
+     *         TERM ( `+` TERM )* |
+     *         TERM ( `-` TERM )*
      */
     private ASTNode parseSum(Queue<Token> tokens) {
         ASTNode node = parseTerm(tokens);
@@ -202,8 +236,8 @@ public class Parser {
     
     /**
      * TERM ::= FACTOR |
-     *          FACTOR ( "*" FACTOR )* |
-     *          FACTOR ( "/" FACTOR )* |
+     *          FACTOR ( `×` FACTOR )* |
+     *          FACTOR ( `÷` FACTOR )* |
      */
     private ASTNode parseTerm(Queue<Token> tokens) {
         ASTNode node = parseFactor(tokens);
@@ -220,17 +254,19 @@ public class Parser {
     }
     
     /**
-     * FACTOR ::= "+" FACTOR |
-     *            "-" FACTOR |
-     *            "(" EXPR ")" |
+     * FACTOR ::= `+` FACTOR |
+     *            `-` FACTOR |
+     *            `(` EXPR `)` |
      *            NUMBER |
-     *            VAR_NAME
+     *            VAR_NAME |
+     *            `Getkey`
      */
     private ASTNode parseFactor(Queue<Token> tokens) {
         ASTNode node = null;
         if (eat(TokenType.PLUS, tokens))           node = new PlusUnaryOpNode(parseFactor(tokens));
         else if (eat(TokenType.MINUS, tokens))     node = new MinusUnaryOpNode(parseFactor(tokens));
         else if (peek(TokenType.VAR_NAME, tokens)) node = new VarEvaluateNode((char) tokens.poll().getVal());
+        else if (peek(TokenType.GET_KEY, tokens))  node = new GetKeyNode();
         else if (eat(TokenType.LPAREN, tokens)) {
             node = parseExpression(tokens);
             require(TokenType.RPAREN, "Missing closing parenthesis ')' after expression", tokens);
@@ -245,5 +281,13 @@ public class Parser {
     private ASTNode parseNumber(Queue<Token> tokens) {
         Token token = require(TokenType.NUM, "Expects a number", tokens);
         return new NumberNode((int) token.getVal());
+    }
+
+    /**
+     * TEXT ::= `"` .* `"`
+     */
+    private ASTNode parseText(Queue<Token> tokens) {
+        Token token = require(TokenType.TEXT, "Expects a number", tokens);
+        return new TextNode((String) token.getVal());
     }
 }
